@@ -21,6 +21,7 @@ from .com import (
     I_LT_NODE_SUPPORT,
     I_OT_BAR,
     I_OT_NODE,
+    I_OLXDDT_CARTESIAN,
     I_OT_PANEL,
     app,
     collection_numbers,
@@ -719,6 +720,81 @@ def robot_get_node_reactions(
             "truncated": len(rows) >= cap,
             "units": units.block("force", "moment"),
             "reactions": rows,
+        }
+
+    return worker.call(work)
+
+
+_SHELL_FORCES = ("NXX", "NYY", "NXY", "QXX", "QYY")
+_SHELL_MOMENTS = ("MXX", "MYY", "MXY")
+_X_DIRECTIONS = {"x": (1.0, 0.0, 0.0), "y": (0.0, 1.0, 0.0), "z": (0.0, 0.0, 1.0)}
+
+
+def _fe_params() -> Any:
+    import win32com.client
+
+    return win32com.client.Dispatch("Robot.FeResultParams")
+
+
+@server.tool(
+    description="Shell forces of a panel at its nodes: NXX/NYY/NXY and QXX/QYY (force per "
+    "metre) and MXX/MYY/MXY (moment per metre), per node per case. `x_direction` sets the "
+    "x axis of the result frame: 'local' (default) is each finite element's own local "
+    "system — what Robot's tables show, but it can differ from element to element and "
+    "change when the mesh is regenerated, so MXX/MYY may come out swapped at some nodes; "
+    "'x', 'y' or 'z' fixes the x axis along that global direction (projected on the panel), "
+    "which gives mesh-independent results (e.g. 'x' for slabs, 'z' for walls). `nodes` "
+    "defaults to all nodes of the panel."
+)
+def robot_get_panel_forces(
+    panel: int,
+    cases: str,
+    nodes: str | None = None,
+    x_direction: str = "local",
+    limit: int | None = None,
+) -> dict[str, Any]:
+    if x_direction not in ("local", *_X_DIRECTIONS):
+        raise ValueError("x_direction must be 'local', 'x', 'y' or 'z'.")
+
+    def work() -> dict[str, Any]:
+        st = structure()
+        if not bool(_safe(st.Results, "Available", False)):
+            raise RuntimeError("No analysis results are available.")
+        obj = st.Objects.Get(int(panel))
+        if obj is None:
+            raise ValueError(f"Panel {panel} does not exist.")
+        node_numbers = selection_numbers(I_OT_NODE, nodes or str(_safe(obj, "Nodes", "")))
+        case_numbers = selection_numbers(2, cases)
+        params = _fe_params()
+        params.Panel = int(panel)
+        if x_direction != "local":
+            params.SetDirX(I_OLXDDT_CARTESIAN, *_X_DIRECTIONS[x_direction])
+        fe = st.Results.FiniteElems
+        rows: list[dict[str, Any]] = []
+        cap = max_items() if limit is None else min(limit, max_items())
+        for c in case_numbers:
+            for n in node_numbers:
+                if len(rows) >= cap:
+                    break
+                params.Node = n
+                params.Case = c
+                try:
+                    r = fe.Detailed(params)
+                except Exception as exc:
+                    rows.append({"node": n, "case": c, "error": str(exc)})
+                    continue
+                row = {"node": n, "case": c}
+                row.update({k: units.conv("force", _safe(r, k)) for k in _SHELL_FORCES})
+                row.update({k: units.conv("moment", _safe(r, k)) for k in _SHELL_MOMENTS})
+                rows.append(row)
+        u = units.current()
+        return {
+            "panel": int(panel),
+            "x_direction": x_direction,
+            "returned": len(rows),
+            "truncated": len(rows) >= cap,
+            "units": {"force_per_length": f"{u['force']}/m", "moment_per_length": f"{u['moment']}/m"},
+            "forces": rows,
         }
 
     return worker.call(work)

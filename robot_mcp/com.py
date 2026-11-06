@@ -39,6 +39,12 @@ CASE_NATURE = {
     6: "seismic",
 }
 
+# IRobotObjLocalXDirDefinitionType (robotom.tlb, Robot 2027): direction of the local x
+# axis used by RobotFeResultParams.SetDirX.
+I_OLXDDT_UNDEFINED = 0
+I_OLXDDT_CARTESIAN = 1
+I_OLXDDT_POLAR = 2
+
 CASE_TYPE = {0: "simple", 1: "combination", 2: "code_combination", 3: "moving"}
 
 CALC_STATUS = {
