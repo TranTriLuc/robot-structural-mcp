@@ -104,6 +104,7 @@ Vì vậy mọi kết quả trả về đều kèm khối `units` tường minh,
 | `robot_get_bar_extreme_forces` | Bao nội lực min/max từng thành phần, kèm vị trí xảy ra |
 | `robot_get_node_displacements` | Chuyển vị và góc xoay |
 | `robot_get_node_reactions` | Phản lực gối — đầu vào cho thiết kế móng |
+| `robot_get_panel_forces` | Nội lực tấm tại nút (NXX/NYY/NXY, MXX/MYY/MXY, QXX/QYY); `x_direction` = `local`, `x`, `y`, `z` (shell forces at panel nodes; fixed x direction for mesh-independent results) |
 
 ### Phát triển
 | Tool | Việc |
